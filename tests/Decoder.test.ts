@@ -9,6 +9,7 @@ import {
   nullable,
   number,
   oneOf,
+  something,
   string,
   succeed,
 } from '../src/index';
@@ -268,11 +269,43 @@ test('oneOf', t => {
 
 test('applicative', t => {
   const ctor = (s: string) => (n: number) => ({ s, n });
-  const decoder = succeed(ctor).ap(field('foo', string)).ap(field('bar', number));
+  const decoder = something(ctor).ap(field('foo', string)).ap(field('bar', number));
 
   decoder.decodeAny({ foo: 'baz', bar: 42 }).cata({
     Err: m => t.fail(`should have succeeded: ${m}`),
     Ok: v => t.pass(`Worked!: ${JSON.stringify(v)}`),
   });
+  t.end();
+});
+
+test('applicative is type-safe', t => {
+  interface Result {
+    s: string;
+    n: number;
+  }
+  type Ctor =  (s: string) => (n: number) => Result;
+  const ctor = (s: string) => (n: number) => ({ s, n });
+
+  const decoder =
+    something<Ctor, string, (n: number) => Result>(ctor)
+    .ap(field('foo', string))
+    .finish(field('bar', number));
+
+  decoder.decodeAny({ foo: 'baz', bar: 42 }).cata({
+    Err: m => t.fail(`should have succeeded: ${m}`),
+		// If compiles it's type-safe
+    Ok: (v: Result) => v.s && t.pass(`Worked!: ${JSON.stringify(v)} is type-safe`),
+  });
+
+  const decoder2 =
+    something<Ctor, string, (n: number) => Result>(ctor)
+    .ap(field('bar', string));
+
+  decoder2.decodeAny({ foo: 'baz', bar: 42 }).cata({
+		// If compiles it's not type-safe
+    Err: m => t.fail(`should have not compiled: ${m}`),
+    Ok: (v: Result) => t.fail(`Sould have not compiled: ${JSON.stringify(v)}`),
+  });
+
   t.end();
 });
