@@ -12,7 +12,7 @@
   },
   "scripts": {
     "docs": "typedoc --out docs --theme minimal && touch docs/.nojekyll",
-    "test": "ts-node node_modules/tape/bin/tape tests/**/*.ts | tap-spec",
+    "test": "ts-node --type-check node_modules/tape/bin/tape tests/**/*.ts | tap-spec",
     "build": "tsc",
     "semantic-release": "semantic-release pre && npm publish && semantic-release post"
   },

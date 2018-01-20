@@ -6,12 +6,13 @@ import { err, ok, Result } from 'resulty';
  */
 export type DecoderFn<A> = (thing: any) => Result<string, A>;
 
+export type TypeConstructor<A, B> = (a: A) => B;
 /**
  * A Decoder represents a value that can be converted to a known type, either
  * from JSON or from an <any> typed object.
  */
 export default class Decoder<A> {
-  private fn: DecoderFn<A>;
+  protected fn: DecoderFn<A>;
 
   constructor(thisFn: DecoderFn<A>) {
     this.fn = thisFn;
@@ -46,17 +47,6 @@ export default class Decoder<A> {
   public orElse(f: (e: string) => Decoder<A>): Decoder<A> {
     return new Decoder(value => {
       return this.fn(value).orElse(e => f(e).decodeAny(value));
-    });
-  }
-
-  /**
-   * Applies the value from the decoder argument to a function in the current
-   * decoder context.
-   */
-  public ap<B>(decoder: Decoder<B>) {
-    return new Decoder(value => {
-      const unwrapFn = this.fn(value);
-      return unwrapFn.ap(decoder.decodeAny(value));
     });
   }
 
@@ -98,10 +88,33 @@ export default class Decoder<A> {
   }
 }
 
+export class ApDecoder<A extends TypeConstructor<B, C>, B, C> extends Decoder<A> {
+
+  /**
+   * Applies the value from the decoder argument to a function in the current
+   * decoder context.
+   */
+  public ap<D, F>(decoder: Decoder<B>): ApDecoder<TypeConstructor<D, F>, D, F> {
+    return new ApDecoder(value => {
+      const unwrapFn: Result<string, TypeConstructor<B, C>> = this.fn(value);
+      return unwrapFn.ap(decoder.decodeAny(value));
+    });
+  }
+
+  public finish(decoder: Decoder<B>): Decoder<C> {
+    return new Decoder(value => {
+      const unwrapFn: Result<string, TypeConstructor<B, C>> = this.fn(value);
+      return unwrapFn.ap(decoder.decodeAny(value));
+    });
+  }
+}
+
 /**
  * Returns a decoder that always succeeds, resolving to the value passed in.
  */
 export const succeed = <A>(value: A) => new Decoder(_ => ok(value));
+
+export const something = <A extends TypeConstructor<B, C>, B, C>(value: A) => new ApDecoder<A, B, C>(_ => ok(value));
 
 /**
  * Returns a decoder that always fails, returning an Err with the message
